@@ -1,42 +1,41 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8">
   <title>ARK Server Control</title>
 </head>
 <body>
 
-  <h1>ARK Server Control Panel</h1>
+<h1>ARK Server Control</h1>
 
-  <button onclick="startServer()">Start / Restart Server</button>
+<p id="status">Loading status...</p>
 
-  <p id="result"></p>
+<button onclick="startServer()">Start / Restart Server</button>
 
-  <script>
-    const BACKEND_URL = "https://finniest-fransisca-ureido.ngrok-free.dev/";
-    const CONTROL_TOKEN = "ark-panel-9f3k2lq8";
+<script>
+const API_BASE = "https://finniest-fransisca-ureido.ngrok-free.dev";
+const TOKEN = "YOUR_CONTROL_TOKEN_HERE";
 
-    async function startServer() {
-      const result = document.getElementById("result");
-      result.textContent = "Sending request...";
+async function loadStatus() {
+  const res = await fetch(`${API_BASE}/api/status`);
+  const data = await res.json();
+  document.getElementById("status").innerText =
+    "Server status: " + data;
+}
 
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/start`, {
-          method: "POST",
-          headers: {
-            "x-control-token": CONTROL_TOKEN
-          }
-        });
-
-        const data = await res.json();
-        result.textContent = "Request sent successfully!";
-        console.log(data);
-      } catch (err) {
-        result.textContent = "Error sending request";
-        console.error(err);
-      }
+async function startServer() {
+  await fetch(`${API_BASE}/api/start`, {
+    method: "POST",
+    headers: {
+      "x-control-token": TOKEN
     }
-  </script>
+  });
+
+  alert("Start request sent");
+}
+
+loadStatus();
+</script>
 
 </body>
 </html>
