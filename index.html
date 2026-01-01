@@ -61,10 +61,7 @@
 
       function parseOnlineStatus(data) {
         const rawStatus =
-          (typeof data === "string" ? data : null) ||
-          data?.data?.gameserver?.status ||
-          data?.status ||
-          data?.message;
+          data?.data?.gameserver?.status || data?.status || data?.message;
         const statusString = typeof rawStatus === "string" ? rawStatus.toLowerCase() : "";
 
         const isOnline = ["started", "running", "online"].some((state) =>
@@ -82,27 +79,8 @@
       async function refreshStatus() {
         try {
           setStatusVisual("Checking…", "#bbb");
-          const r = await fetch(`${BACKEND_BASE_URL}/api/status`, {
-            headers: { "Accept": "application/json" }
-          });
-          const contentType = (r.headers.get("content-type") || "").toLowerCase();
-          let data;
-          if (contentType.includes("application/json")) {
-            data = await r.json();
-          } else {
-            const text = await r.text();
-            // Server returned HTML or plain text — show it and avoid throwing on r.json()
-            setStatusVisual("Status unavailable", "#e67e22", `(${r.status})`);
-            show({ httpStatus: r.status, text });
-            return;
-          }
-
-          if (!r.ok) {
-            setStatusVisual("Status unavailable", "#e67e22", `(${r.status})`);
-            show({ httpStatus: r.status, data });
-            return;
-          }
-
+          const r = await fetch(`${BACKEND_BASE_URL}/api/status`);
+          const data = await r.json();
           const statusInfo = parseOnlineStatus(data);
           setStatusVisual(statusInfo.label, statusInfo.color, statusInfo.detail);
           show({ httpStatus: r.status, data });
@@ -116,16 +94,10 @@
         try {
           const r = await fetch(`${BACKEND_BASE_URL}/api/start`, {
             method: "POST",
-            headers: { "x-control-token": CONTROL_TOKEN, "Accept": "application/json" }
+            headers: { "x-control-token": CONTROL_TOKEN }
           });
-          const contentType = (r.headers.get("content-type") || "").toLowerCase();
-          if (contentType.includes("application/json")) {
-            const data = await r.json();
-            show({ httpStatus: r.status, data });
-          } else {
-            const text = await r.text();
-            show({ httpStatus: r.status, text });
-          }
+          const data = await r.json();
+          show({ httpStatus: r.status, data });
           refreshStatus();
         } catch (e) {
           show("Start failed: " + e);
@@ -136,16 +108,10 @@
         try {
           const r = await fetch(`${BACKEND_BASE_URL}/api/stop`, {
             method: "POST",
-            headers: { "x-control-token": CONTROL_TOKEN, "Accept": "application/json" }
+            headers: { "x-control-token": CONTROL_TOKEN }
           });
-          const contentType = (r.headers.get("content-type") || "").toLowerCase();
-          if (contentType.includes("application/json")) {
-            const data = await r.json();
-            show({ httpStatus: r.status, data });
-          } else {
-            const text = await r.text();
-            show({ httpStatus: r.status, text });
-          }
+          const data = await r.json();
+          show({ httpStatus: r.status, data });
           refreshStatus();
         } catch (e) {
           show("Stop failed: " + e);
