@@ -1,158 +1,158 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>ARK Server Control</title>
-    <style>
-      :root{
-        --bg:#0f1720; --card:#0b1220; --muted:#9aa6b2; --border:#22313f;
-        --btn:#1f2937; --btnh:#2b3642; --good:#22c55e; --bad:#ef4444; --warn:#f59e0b;
-      }
-      body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:#e5e7eb}
-      .wrap{max-width:760px;margin:40px auto;padding:0 16px}
-      .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
-      h1{margin:0 0 6px;font-size:24px}
-      .sub{margin:0 0 18px;color:var(--muted);font-size:14px}
-      .row{display:flex;gap:12px;flex-wrap:wrap}
-      button{background:var(--btn);color:#e5e7eb;border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:14px;cursor:pointer}
-      button:hover{background:var(--btnh)}
-      button:disabled{opacity:.6;cursor:not-allowed}
-      .status{display:flex;align-items:center;gap:10px;margin:14px 0 10px}
-      .dot{width:12px;height:12px;border-radius:999px;background:var(--warn)}
-      .dot.online{background:var(--good)}
-      .dot.offline{background:var(--bad)}
-      .pill{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:6px 10px;border-radius:999px}
-      .log{margin-top:14px;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#cbd5e1;white-space:pre-wrap}
-      .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
-      .pinbox{display:flex;gap:8px;align-items:center}
-      input{background:#0a1220;color:#e5e7eb;border:1px solid var(--border);border-radius:10px;padding:10px 12px;outline:none}
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <div class="card">
-        <div class="topbar">
-          <div>
-            <h1>ARK Server Control</h1>
-            <p class="sub">Start/stop your Nitrado server via your laptop backend (ngrok tunnel).</p>
-          </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ARK Server Control</title>
+  <style>
+    body { font-family: system-ui, Arial; max-width: 680px; margin: 40px auto; padding: 0 16px; }
+    .card { border: 1px solid #ddd; border-radius: 14px; padding: 18px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    button { padding: 10px 14px; border-radius: 12px; border: 1px solid #ccc; cursor: pointer; background: #fff; }
+    button.primary { border-color: #111; }
+    .status { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; background: #999; }
+    .dot.on { background: #22c55e; }
+    .dot.off { background: #ef4444; }
+    .muted { color: #666; font-size: 14px; }
+    input { padding: 10px 12px; border-radius: 12px; border: 1px solid #ccc; width: 240px; }
+    pre { background: #f6f6f6; padding: 12px; border-radius: 12px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>ARK Server Control</h1>
 
-          <div class="pinbox">
-            <input id="pin" type="password" inputmode="numeric" placeholder="PIN" />
-            <button onclick="savePin()">Unlock</button>
-          </div>
-        </div>
+  <div class="card">
+    <div class="muted">PIN-protected controls (simple). Your PIN is stored locally in your browser.</div>
 
-        <div class="status">
-          <span id="dot" class="dot"></span>
-          <div>
-            <div id="statusText">Unknown</div>
-            <div class="pill" id="raw">raw: n/a</div>
-          </div>
-        </div>
+    <div class="row" style="margin-top:12px;">
+      <input id="pin" type="password" placeholder="Enter PIN" />
+      <button class="primary" onclick="savePin()">Save PIN</button>
+      <button onclick="clearPin()">Clear</button>
+    </div>
 
-        <div class="row">
-          <button id="btnStatus" onclick="status()">Refresh Status</button>
-          <button id="btnStart" onclick="start()">Start</button>
-          <button id="btnStop" onclick="stop()">Stop</button>
-          <button id="btnRestart" onclick="restart()">Restart</button>
-        </div>
-
-        <div class="log" id="log"></div>
+    <div class="status">
+      <div id="dot" class="dot"></div>
+      <div>
+        <div><strong id="statusText">Unknown</strong></div>
+        <div class="muted" id="statusSub">Not checked yet</div>
       </div>
     </div>
 
-    <script>
-      // ✅ Put your ngrok base URL here (no trailing slash)
-      const BACKEND_BASE = "https://finniest-fransisca-ureido.ngrok-free.dev";
+    <div class="row">
+      <button onclick="callApi('start')">Start</button>
+      <button onclick="callApi('stop')">Stop</button>
+      <button onclick="callApi('restart')">Restart</button>
+      <button class="primary" onclick="refreshStatus()">Refresh status</button>
+    </div>
 
-      const logEl = document.getElementById("log");
-      const dot = document.getElementById("dot");
-      const statusText = document.getElementById("statusText");
-      const rawEl = document.getElementById("raw");
-      const pinInput = document.getElementById("pin");
+    <details style="margin-top:12px;">
+      <summary class="muted">Debug output</summary>
+      <pre id="out">(none)</pre>
+    </details>
+  </div>
 
-      // Load saved PIN for convenience (still visible to whoever uses the device)
-      const saved = sessionStorage.getItem("ark_pin");
-      if (saved) pinInput.value = saved;
+<script>
+  // ✅ Set this to your ngrok base URL (NO trailing slash)
+  const BACKEND_BASE = "https://YOUR-NGROK-SUBDOMAIN.ngrok-free.dev";
 
-      function savePin() {
-        sessionStorage.setItem("ark_pin", pinInput.value.trim());
-        addLog("PIN saved for this session.");
-        status(); // auto-check after unlock
-      }
+  const pinEl = document.getElementById("pin");
+  const outEl = document.getElementById("out");
+  const dotEl = document.getElementById("dot");
+  const statusTextEl = document.getElementById("statusText");
+  const statusSubEl = document.getElementById("statusSub");
 
-      function getPin() {
-        return (sessionStorage.getItem("ark_pin") || "").trim();
-      }
+  // Load saved PIN
+  pinEl.value = localStorage.getItem("ark_pin") || "";
 
-      function addLog(msg) {
-        logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + logEl.textContent;
-      }
+  function savePin() {
+    localStorage.setItem("ark_pin", pinEl.value.trim());
+    log("PIN saved locally.");
+    refreshStatus();
+  }
 
-      async function api(path, method = "GET") {
-        const pin = getPin();
-        if (!pin) throw new Error("Enter PIN and press Unlock");
+  function clearPin() {
+    localStorage.removeItem("ark_pin");
+    pinEl.value = "";
+    log("PIN cleared.");
+    setStatusUI("unknown", "Not checked yet");
+  }
 
-        const resp = await fetch(`${BACKEND_BASE}${path}`, {
-          method,
-          headers: { "x-pin": pin }
-        });
+  function getPin() {
+    return (localStorage.getItem("ark_pin") || pinEl.value || "").trim();
+  }
 
-        // If backend/route missing, ngrok returns HTML. Handle that cleanly:
-        const contentType = resp.headers.get("content-type") || "";
-        if (!contentType.includes("application/json")) {
-          const text = await resp.text();
-          throw new Error(`Non-JSON response (${resp.status}): ${text.slice(0, 120)}`);
+  function log(msg) {
+    outEl.textContent = msg;
+  }
+
+  function setStatusUI(state, sub) {
+    // state could be "started"/"stopped"/unknown depending on API
+    dotEl.className = "dot";
+    if (String(state).toLowerCase().includes("start") || String(state).toLowerCase().includes("run")) {
+      dotEl.classList.add("on");
+      statusTextEl.textContent = "Online";
+    } else if (String(state).toLowerCase().includes("stop") || String(state).toLowerCase().includes("down")) {
+      dotEl.classList.add("off");
+      statusTextEl.textContent = "Offline";
+    } else {
+      statusTextEl.textContent = "Unknown";
+    }
+    statusSubEl.textContent = sub;
+  }
+
+  async function callApi(action) {
+    const pin = getPin();
+    if (!pin) return log("Enter your PIN first.");
+
+    const url = `${BACKEND_BASE}/api/${action}`;
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "X-Control-Token": pin
         }
+      });
 
-        const json = await resp.json();
-        if (!resp.ok) {
-          throw new Error(`${resp.status}: ${json.error || "Request failed"}`);
+      const text = await resp.text();
+      log(`${action.toUpperCase()} → ${resp.status}\n${text}`);
+
+      // after start/stop/restart, refresh status
+      setTimeout(refreshStatus, 1500);
+    } catch (e) {
+      log(`${action.toUpperCase()} failed: ${e}`);
+    }
+  }
+
+  async function refreshStatus() {
+    const pin = getPin();
+    if (!pin) return setStatusUI("unknown", "Enter PIN to check status");
+
+    const url = `${BACKEND_BASE}/api/status`;
+    try {
+      const resp = await fetch(url, {
+        method: "GET",
+        headers: {
+          "X-Control-Token": pin
         }
-        return json;
-      }
+      });
 
-      function setUi(online, rawStatus) {
-        dot.classList.remove("online", "offline");
-        if (online === true) dot.classList.add("online");
-        else if (online === false) dot.classList.add("offline");
-        statusText.textContent = online === true ? "Online" : online === false ? "Offline" : "Unknown";
-        rawEl.textContent = "raw: " + (rawStatus ?? "n/a");
-      }
+      const data = await resp.json();
+      log(`STATUS → ${resp.status}\n${JSON.stringify(data, null, 2)}`);
 
-      async function status() {
-        try {
-          addLog("Checking status…");
-          const r = await api("/api/status", "GET");
-          setUi(r.online, r.rawStatus);
-          addLog("Status OK.");
-        } catch (e) {
-          addLog("Status failed: " + e.message);
-        }
+      if (resp.ok) {
+        setStatusUI(data.status, `Raw status: ${data.status}`);
+      } else {
+        setStatusUI("unknown", `Status check failed (${resp.status})`);
       }
+    } catch (e) {
+      setStatusUI("unknown", "Status failed (fetch/json error)");
+      log(`Status failed: ${e}`);
+    }
+  }
 
-      async function start() {
-        try { addLog("Start…"); await api("/api/start", "POST"); addLog("Start requested."); setTimeout(status, 1500); }
-        catch(e){ addLog("Start failed: " + e.message); }
-      }
-
-      async function stop() {
-        try { addLog("Stop…"); await api("/api/stop", "POST"); addLog("Stop requested."); setTimeout(status, 1500); }
-        catch(e){ addLog("Stop failed: " + e.message); }
-      }
-
-      async function restart() {
-        try { addLog("Restart…"); await api("/api/restart", "POST"); addLog("Restart requested."); setTimeout(status, 1500); }
-        catch(e){ addLog("Restart failed: " + e.message); }
-      }
-
-      // Auto-check on page load (will ask for PIN if not saved)
-      setTimeout(() => {
-        if (getPin()) status();
-        else addLog("Enter PIN and press Unlock to enable controls.");
-      }, 200);
-    </script>
-  </body>
+  // ✅ Auto-check when page opens
+  refreshStatus();
+</script>
+</body>
 </html>
