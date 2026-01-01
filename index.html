@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>ARK Server Control</h1>
+<button onclick="start()">Start Server</button>
+
+<script>
+async function start() {
+  await fetch("https://abc123.ngrok.io/api/start", {
+    method: "POST"
+  });
+  alert("Request sent");
+}
+</script>
+
+</body>
+</html>
