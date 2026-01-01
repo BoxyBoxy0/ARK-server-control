@@ -1,158 +1,78 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ARK Server Control</title>
-  <style>
-    body { font-family: system-ui, Arial; max-width: 680px; margin: 40px auto; padding: 0 16px; }
-    .card { border: 1px solid #ddd; border-radius: 14px; padding: 18px; }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
-    button { padding: 10px 14px; border-radius: 12px; border: 1px solid #ccc; cursor: pointer; background: #fff; }
-    button.primary { border-color: #111; }
-    .status { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
-    .dot { width: 12px; height: 12px; border-radius: 50%; background: #999; }
-    .dot.on { background: #22c55e; }
-    .dot.off { background: #ef4444; }
-    .muted { color: #666; font-size: 14px; }
-    input { padding: 10px 12px; border-radius: 12px; border: 1px solid #ccc; width: 240px; }
-    pre { background: #f6f6f6; padding: 12px; border-radius: 12px; overflow: auto; }
-  </style>
-</head>
-<body>
-  <h1>ARK Server Control</h1>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ARK Server Control</title>
+    <style>
+      body { font-family: sans-serif; max-width: 720px; margin: 40px auto; }
+      button { padding: 10px 14px; margin-right: 10px; }
+      code { background: #f2f2f2; padding: 2px 6px; border-radius: 6px; }
+      pre { background: #f7f7f7; padding: 12px; border-radius: 10px; overflow:auto; }
+    </style>
+  </head>
+  <body>
+    <h1>ARK Server Control</h1>
 
-  <div class="card">
-    <div class="muted">PIN-protected controls (simple). Your PIN is stored locally in your browser.</div>
+    <p>
+      Backend: <code id="backend"></code>
+    </p>
 
-    <div class="row" style="margin-top:12px;">
-      <input id="pin" type="password" placeholder="Enter PIN" />
-      <button class="primary" onclick="savePin()">Save PIN</button>
-      <button onclick="clearPin()">Clear</button>
+    <div>
+      <button onclick="status()">Status</button>
+      <button onclick="start()">Start</button>
+      <button onclick="stop()">Stop</button>
     </div>
 
-    <div class="status">
-      <div id="dot" class="dot"></div>
-      <div>
-        <div><strong id="statusText">Unknown</strong></div>
-        <div class="muted" id="statusSub">Not checked yet</div>
-      </div>
-    </div>
+    <h3>Output</h3>
+    <pre id="out">Click a button…</pre>
 
-    <div class="row">
-      <button onclick="callApi('start')">Start</button>
-      <button onclick="callApi('stop')">Stop</button>
-      <button onclick="callApi('restart')">Restart</button>
-      <button class="primary" onclick="refreshStatus()">Refresh status</button>
-    </div>
+    <script>
+      const BACKEND_BASE_URL = "https://finniest-fransisca-ureido.ngrok-free.dev";
+      // This token is visible in the frontend. For temporary use it’s OK, but don’t share the URL publicly.
+      const CONTROL_TOKEN = "ark-panel-9f3k2lq8";
 
-    <details style="margin-top:12px;">
-      <summary class="muted">Debug output</summary>
-      <pre id="out">(none)</pre>
-    </details>
-  </div>
+      document.getElementById("backend").textContent = BACKEND_BASE_URL;
 
-<script>
-  // ✅ Set this to your ngrok base URL (NO trailing slash)
-  const BACKEND_BASE = "https://YOUR-NGROK-SUBDOMAIN.ngrok-free.dev";
-
-  const pinEl = document.getElementById("pin");
-  const outEl = document.getElementById("out");
-  const dotEl = document.getElementById("dot");
-  const statusTextEl = document.getElementById("statusText");
-  const statusSubEl = document.getElementById("statusSub");
-
-  // Load saved PIN
-  pinEl.value = localStorage.getItem("ark_pin") || "";
-
-  function savePin() {
-    localStorage.setItem("ark_pin", pinEl.value.trim());
-    log("PIN saved locally.");
-    refreshStatus();
-  }
-
-  function clearPin() {
-    localStorage.removeItem("ark_pin");
-    pinEl.value = "";
-    log("PIN cleared.");
-    setStatusUI("unknown", "Not checked yet");
-  }
-
-  function getPin() {
-    return (localStorage.getItem("ark_pin") || pinEl.value || "").trim();
-  }
-
-  function log(msg) {
-    outEl.textContent = msg;
-  }
-
-  function setStatusUI(state, sub) {
-    // state could be "started"/"stopped"/unknown depending on API
-    dotEl.className = "dot";
-    if (String(state).toLowerCase().includes("start") || String(state).toLowerCase().includes("run")) {
-      dotEl.classList.add("on");
-      statusTextEl.textContent = "Online";
-    } else if (String(state).toLowerCase().includes("stop") || String(state).toLowerCase().includes("down")) {
-      dotEl.classList.add("off");
-      statusTextEl.textContent = "Offline";
-    } else {
-      statusTextEl.textContent = "Unknown";
-    }
-    statusSubEl.textContent = sub;
-  }
-
-  async function callApi(action) {
-    const pin = getPin();
-    if (!pin) return log("Enter your PIN first.");
-
-    const url = `${BACKEND_BASE}/api/${action}`;
-    try {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          "X-Control-Token": pin
-        }
-      });
-
-      const text = await resp.text();
-      log(`${action.toUpperCase()} → ${resp.status}\n${text}`);
-
-      // after start/stop/restart, refresh status
-      setTimeout(refreshStatus, 1500);
-    } catch (e) {
-      log(`${action.toUpperCase()} failed: ${e}`);
-    }
-  }
-
-  async function refreshStatus() {
-    const pin = getPin();
-    if (!pin) return setStatusUI("unknown", "Enter PIN to check status");
-
-    const url = `${BACKEND_BASE}/api/status`;
-    try {
-      const resp = await fetch(url, {
-        method: "GET",
-        headers: {
-          "X-Control-Token": pin
-        }
-      });
-
-      const data = await resp.json();
-      log(`STATUS → ${resp.status}\n${JSON.stringify(data, null, 2)}`);
-
-      if (resp.ok) {
-        setStatusUI(data.status, `Raw status: ${data.status}`);
-      } else {
-        setStatusUI("unknown", `Status check failed (${resp.status})`);
+      function show(x) {
+        document.getElementById("out").textContent =
+          typeof x === "string" ? x : JSON.stringify(x, null, 2);
       }
-    } catch (e) {
-      setStatusUI("unknown", "Status failed (fetch/json error)");
-      log(`Status failed: ${e}`);
-    }
-  }
 
-  // ✅ Auto-check when page opens
-  refreshStatus();
-</script>
-</body>
+      async function status() {
+        try {
+          const r = await fetch(`${BACKEND_BASE_URL}/api/status`);
+          const data = await r.json();
+          show({ httpStatus: r.status, data });
+        } catch (e) {
+          show("Status failed: " + e);
+        }
+      }
+
+      async function start() {
+        try {
+          const r = await fetch(`${BACKEND_BASE_URL}/api/start`, {
+            method: "POST",
+            headers: { "x-control-token": CONTROL_TOKEN }
+          });
+          const data = await r.json();
+          show({ httpStatus: r.status, data });
+        } catch (e) {
+          show("Start failed: " + e);
+        }
+      }
+
+      async function stop() {
+        try {
+          const r = await fetch(`${BACKEND_BASE_URL}/api/stop`, {
+            method: "POST",
+            headers: { "x-control-token": CONTROL_TOKEN }
+          });
+          const data = await r.json();
+          show({ httpStatus: r.status, data });
+        } catch (e) {
+          show("Stop failed: " + e);
+        }
+      }
+    </script>
+  </body>
 </html>
