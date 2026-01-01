@@ -1,168 +1,149 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>ARK Server Control</title>
-    <style>
-      body { font-family: system-ui, Arial; max-width: 760px; margin: 40px auto; padding: 20px; }
-      button { padding: 10px 14px; margin-right: 10px; cursor: pointer; }
-      .pill { display:inline-flex; align-items:center; gap:10px; padding:10px 14px; border:1px solid #ccc; border-radius:999px; font-weight:700; }
-      .dot { width:12px; height:12px; border-radius:999px; background:#f59e0b; }
-      .dot.good { background:#16a34a; }
-      .dot.bad { background:#ef4444; }
-      pre { background:#111; color:#eee; padding: 12px; border-radius: 8px; overflow:auto; }
-      .gate { padding: 12px; border: 1px solid #ccc; border-radius: 10px; margin: 14px 0; }
-      input { padding: 10px; width: 200px; }
-    </style>
-  </head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ARK Server Panel</title>
+  <style>
+    body { font-family: system-ui, Arial; max-width: 720px; margin: 24px auto; padding: 0 16px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 12px 0; }
+    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #ccc; cursor: pointer; margin-right: 8px; }
+    input { padding: 10px 12px; border-radius: 10px; border: 1px solid #ccc; width: 100%; box-sizing: border-box; }
+    pre { background: #f6f6f6; padding: 12px; border-radius: 10px; overflow: auto; }
+    .row { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .status { font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>ARK Server Control</h1>
 
-  <body>
-    <h1>ARK Server Control</h1>
-    <p>Backend: <code id="backend"></code></p>
+  <div class="card">
+    <div class="row">
+      <label>
+        Backend Base URL (ngrok)
+        <input id="baseUrl" placeholder="https://xxxx.ngrok-free.dev" />
+      </label>
 
-    <div class="gate">
-      <label>Panel PIN:</label>
-      <input id="pin" type="password" placeholder="Enter PIN" />
-      <button onclick="unlock()">Unlock</button>
-      <button onclick="lock()">Lock</button>
-      <p style="margin:10px 0 0;">
-        PIN just hides buttons. Real protection is the backend token.
-      </p>
+      <label>
+        Access Token (shared)
+        <input id="token" placeholder="CONTROL_TOKEN" />
+      </label>
+
+      <button onclick="saveSettings()">Save</button>
     </div>
+  </div>
 
-    <div class="pill">
-      <span id="dot" class="dot"></span>
-      <span id="statusText">UNKNOWN</span>
-    </div>
-    <p>Last check: <span id="lastCheck">—</span></p>
+  <div class="card">
+    <div class="status">Status: <span id="statusText">Unknown</span></div>
+    <div>Last update: <span id="statusTime">—</span></div>
+    <p id="statusHint" style="color:#666; margin: 8px 0 0;"></p>
+  </div>
 
-    <div id="controls" style="display:none; margin: 14px 0;">
-      <button onclick="status()">Status</button>
-      <button onclick="start()">Start</button>
-      <button onclick="stop()">Stop</button>
-      <button onclick="restart()">Restart</button>
-    </div>
+  <div class="card">
+    <button onclick="doAction('start')">Start</button>
+    <button onclick="doAction('stop')">Stop</button>
+    <button onclick="doAction('restart')">Restart</button>
+    <button onclick="refreshStatus()">Refresh Status</button>
+  </div>
 
-    <h3>Output</h3>
-    <pre id="out">Locked. Enter PIN to show controls…</pre>
+  <div class="card">
+    <strong>Debug output</strong>
+    <pre id="output">(nothing yet)</pre>
+  </div>
 
-    <script>
-      // ---- CONFIG ----
-      const BACKEND_BASE_URL = "https://finniest-fransisca-ureido.ngrok-free.dev"; // your ngrok url
-      const CONTROL_TOKEN = "ark-panel-9f3k2lq8"; // must match backend .env
-      const PANEL_PIN = "1234"; // friend-friendly gate
-      const AUTO_REFRESH_SECONDS = 20;
+<script>
+  function $(id){ return document.getElementById(id); }
 
-      document.getElementById("backend").textContent = BACKEND_BASE_URL;
+  function saveSettings() {
+    localStorage.setItem("ark_baseUrl", $("baseUrl").value.trim());
+    localStorage.setItem("ark_token", $("token").value.trim());
+    refreshStatus();
+  }
 
-      function show(x) {
-        document.getElementById("out").textContent =
-          typeof x === "string" ? x : JSON.stringify(x, null, 2);
-      }
+  function loadSettings() {
+    $("baseUrl").value = localStorage.getItem("ark_baseUrl") || "";
+    $("token").value = localStorage.getItem("ark_token") || "";
+  }
 
-      function setPill(state) {
-        const dot = document.getElementById("dot");
-        dot.classList.remove("good", "bad");
-        if (state === "ONLINE") dot.classList.add("good");
-        if (state === "OFFLINE") dot.classList.add("bad");
-        document.getElementById("statusText").textContent = state;
-        document.getElementById("lastCheck").textContent = new Date().toLocaleString();
-      }
+  function log(obj) {
+    $("output").textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+  }
 
-      async function fetchJson(url, options) {
-        const r = await fetch(url, options);
-        const text = await r.text();
-        try {
-          return { r, data: JSON.parse(text) };
-        } catch {
-          // This prevents the "<!DOCTYPE ..." crash if something returns HTML
-          return { r, data: { raw: text } };
+  function getCfg() {
+    const baseUrl = $("baseUrl").value.trim().replace(/\/+$/, "");
+    const token = $("token").value.trim();
+    if (!baseUrl) throw new Error("Missing Backend Base URL");
+    if (!token) throw new Error("Missing Access Token");
+    return { baseUrl, token };
+  }
+
+  async function safeJson(resp) {
+    const ct = resp.headers.get("content-type") || "";
+    const text = await resp.text();
+    if (ct.includes("application/json")) return JSON.parse(text);
+    // This is the exact fix for your earlier: Unexpected token '<'
+    // It happens when the response is HTML (like an ngrok/404 page).
+    throw new Error(`Expected JSON, got: ${text.slice(0, 80)}...`);
+  }
+
+  function inferOnOff(data) {
+    // Nitrado’s response structure can vary; we do a best-effort parse:
+    const raw = JSON.stringify(data).toLowerCase();
+
+    if (raw.includes("started") || raw.includes("running") || raw.includes("online")) return "Likely ON";
+    if (raw.includes("stopped") || raw.includes("offline")) return "Likely OFF";
+    return "Unknown (see debug)";
+  }
+
+  async function doAction(action) {
+    try {
+      const { baseUrl, token } = getCfg();
+      const resp = await fetch(`${baseUrl}/api/${action}`, {
+        method: "POST",
+        headers: {
+          "x-control-token": token,
+          "Content-Type": "application/json"
         }
-      }
+      });
 
-      function unlock() {
-        const pin = document.getElementById("pin").value.trim();
-        if (pin !== PANEL_PIN) return show("Wrong PIN.");
-        sessionStorage.setItem("ark_panel_unlocked", "1");
-        document.getElementById("controls").style.display = "";
-        show("Unlocked. Fetching status…");
-        status();
-      }
+      const data = await safeJson(resp);
+      log(data);
+      await refreshStatus();
+    } catch (e) {
+      log(`Action failed: ${e}`);
+    }
+  }
 
-      function lock() {
-        sessionStorage.removeItem("ark_panel_unlocked");
-        document.getElementById("controls").style.display = "none";
-        setPill("UNKNOWN");
-        show("Locked.");
-      }
+  async function refreshStatus() {
+    try {
+      const { baseUrl, token } = getCfg();
 
-      // On load: auto-show if unlocked in this tab
-      (function init() {
-        if (sessionStorage.getItem("ark_panel_unlocked") === "1") {
-          document.getElementById("controls").style.display = "";
-          show("Unlocked (session). Fetching status…");
-          status();
-        }
-      })();
+      const resp = await fetch(`${baseUrl}/api/status`, {
+        method: "GET",
+        headers: { "x-control-token": token }
+      });
 
-      async function status() {
-        try {
-          const { r, data } = await fetchJson(`${BACKEND_BASE_URL}/api/status/summary`, {
-            method: "GET",
-            headers: { "x-control-token": CONTROL_TOKEN }
-          });
+      const data = await safeJson(resp);
 
-          if (!r.ok) {
-            setPill("UNKNOWN");
-            return show({ httpStatus: r.status, data });
-          }
+      $("statusText").textContent = inferOnOff(data);
+      $("statusTime").textContent = new Date().toLocaleTimeString();
+      $("statusHint").textContent = "If it says Unknown, check the Debug output for the exact JSON.";
+      log(data);
+    } catch (e) {
+      $("statusText").textContent = "Failed";
+      $("statusTime").textContent = new Date().toLocaleTimeString();
+      $("statusHint").textContent = "";
+      log(`Status failed: ${e}`);
+    }
+  }
 
-          setPill(data.state || "UNKNOWN");
-          show(data);
-        } catch (e) {
-          setPill("UNKNOWN");
-          show("Status failed: " + e);
-        }
-      }
-
-      async function start() {
-        try {
-          const { r, data } = await fetchJson(`${BACKEND_BASE_URL}/api/start`, {
-            method: "POST",
-            headers: { "x-control-token": CONTROL_TOKEN }
-          });
-          show({ httpStatus: r.status, data });
-          setTimeout(status, 2500);
-        } catch (e) { show("Start failed: " + e); }
-      }
-
-      async function stop() {
-        try {
-          const { r, data } = await fetchJson(`${BACKEND_BASE_URL}/api/stop`, {
-            method: "POST",
-            headers: { "x-control-token": CONTROL_TOKEN }
-          });
-          show({ httpStatus: r.status, data });
-          setTimeout(status, 2500);
-        } catch (e) { show("Stop failed: " + e); }
-      }
-
-      async function restart() {
-        try {
-          const { r, data } = await fetchJson(`${BACKEND_BASE_URL}/api/restart`, {
-            method: "POST",
-            headers: { "x-control-token": CONTROL_TOKEN }
-          });
-          show({ httpStatus: r.status, data });
-          setTimeout(status, 2500);
-        } catch (e) { show("Restart failed: " + e); }
-      }
-
-      if (AUTO_REFRESH_SECONDS > 0) {
-        setInterval(() => {
-          if (sessionStorage.getItem("ark_panel_unlocked") === "1") status();
-        }, AUTO_REFRESH_SECONDS * 1000);
-      }
-    </script>
-  </body>
+  loadSettings();
+  // Auto fetch status when page opens:
+  if ($("baseUrl").value && $("token").value) refreshStatus();
+  // Auto-refresh every 10 seconds:
+  setInterval(() => {
+    if ($("baseUrl").value && $("token").value) refreshStatus();
+  }, 10000);
+</script>
+</body>
 </html>
