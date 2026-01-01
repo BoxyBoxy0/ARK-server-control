@@ -1,40 +1,43 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
   <title>ARK Server Control</title>
 </head>
 <body>
 
 <h1>ARK Server Control</h1>
 
-<p id="status">Loading status...</p>
+<button onclick="startServer()">Start Server</button>
+<button onclick="checkStatus()">Check Status</button>
 
-<button onclick="startServer()">Start / Restart Server</button>
+<pre id="output"></pre>
 
 <script>
 const API_BASE = "https://finniest-fransisca-ureido.ngrok-free.dev";
-const TOKEN = "YOUR_CONTROL_TOKEN_HERE";
-
-async function loadStatus() {
-  const res = await fetch(`${API_BASE}/api/status`);
-  const data = await res.json();
-  document.getElementById("status").innerText =
-    "Server status: " + data;
-}
+const TOKEN = "some_random_string";
 
 async function startServer() {
-  await fetch(`${API_BASE}/api/start`, {
+  const res = await fetch(`${API_BASE}/api/start`, {
     method: "POST",
     headers: {
       "x-control-token": TOKEN
     }
   });
 
-  alert("Start request sent");
+  document.getElementById("output").textContent =
+    await res.text();
 }
 
-loadStatus();
+async function checkStatus() {
+  const res = await fetch(`${API_BASE}/api/status`, {
+    headers: {
+      "x-control-token": TOKEN
+    }
+  });
+
+  document.getElementById("output").textContent =
+    await res.text();
+}
 </script>
 
 </body>
