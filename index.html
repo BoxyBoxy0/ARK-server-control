@@ -1,149 +1,158 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ARK Server Panel</title>
-  <style>
-    body { font-family: system-ui, Arial; max-width: 720px; margin: 24px auto; padding: 0 16px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 12px 0; }
-    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #ccc; cursor: pointer; margin-right: 8px; }
-    input { padding: 10px 12px; border-radius: 10px; border: 1px solid #ccc; width: 100%; box-sizing: border-box; }
-    pre { background: #f6f6f6; padding: 12px; border-radius: 10px; overflow: auto; }
-    .row { display: grid; grid-template-columns: 1fr; gap: 10px; }
-    .status { font-weight: 700; }
-  </style>
-</head>
-<body>
-  <h1>ARK Server Control</h1>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ARK Server Control</title>
+    <style>
+      :root{
+        --bg:#0f1720; --card:#0b1220; --muted:#9aa6b2; --border:#22313f;
+        --btn:#1f2937; --btnh:#2b3642; --good:#22c55e; --bad:#ef4444; --warn:#f59e0b;
+      }
+      body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:#e5e7eb}
+      .wrap{max-width:760px;margin:40px auto;padding:0 16px}
+      .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+      h1{margin:0 0 6px;font-size:24px}
+      .sub{margin:0 0 18px;color:var(--muted);font-size:14px}
+      .row{display:flex;gap:12px;flex-wrap:wrap}
+      button{background:var(--btn);color:#e5e7eb;border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:14px;cursor:pointer}
+      button:hover{background:var(--btnh)}
+      button:disabled{opacity:.6;cursor:not-allowed}
+      .status{display:flex;align-items:center;gap:10px;margin:14px 0 10px}
+      .dot{width:12px;height:12px;border-radius:999px;background:var(--warn)}
+      .dot.online{background:var(--good)}
+      .dot.offline{background:var(--bad)}
+      .pill{font-size:12px;color:var(--muted);border:1px solid var(--border);padding:6px 10px;border-radius:999px}
+      .log{margin-top:14px;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#cbd5e1;white-space:pre-wrap}
+      .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+      .pinbox{display:flex;gap:8px;align-items:center}
+      input{background:#0a1220;color:#e5e7eb;border:1px solid var(--border);border-radius:10px;padding:10px 12px;outline:none}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="topbar">
+          <div>
+            <h1>ARK Server Control</h1>
+            <p class="sub">Start/stop your Nitrado server via your laptop backend (ngrok tunnel).</p>
+          </div>
 
-  <div class="card">
-    <div class="row">
-      <label>
-        Backend Base URL (ngrok)
-        <input id="baseUrl" placeholder="https://xxxx.ngrok-free.dev" />
-      </label>
+          <div class="pinbox">
+            <input id="pin" type="password" inputmode="numeric" placeholder="PIN" />
+            <button onclick="savePin()">Unlock</button>
+          </div>
+        </div>
 
-      <label>
-        Access Token (shared)
-        <input id="token" placeholder="CONTROL_TOKEN" />
-      </label>
+        <div class="status">
+          <span id="dot" class="dot"></span>
+          <div>
+            <div id="statusText">Unknown</div>
+            <div class="pill" id="raw">raw: n/a</div>
+          </div>
+        </div>
 
-      <button onclick="saveSettings()">Save</button>
+        <div class="row">
+          <button id="btnStatus" onclick="status()">Refresh Status</button>
+          <button id="btnStart" onclick="start()">Start</button>
+          <button id="btnStop" onclick="stop()">Stop</button>
+          <button id="btnRestart" onclick="restart()">Restart</button>
+        </div>
+
+        <div class="log" id="log"></div>
+      </div>
     </div>
-  </div>
 
-  <div class="card">
-    <div class="status">Status: <span id="statusText">Unknown</span></div>
-    <div>Last update: <span id="statusTime">—</span></div>
-    <p id="statusHint" style="color:#666; margin: 8px 0 0;"></p>
-  </div>
+    <script>
+      // ✅ Put your ngrok base URL here (no trailing slash)
+      const BACKEND_BASE = "https://finniest-fransisca-ureido.ngrok-free.dev";
 
-  <div class="card">
-    <button onclick="doAction('start')">Start</button>
-    <button onclick="doAction('stop')">Stop</button>
-    <button onclick="doAction('restart')">Restart</button>
-    <button onclick="refreshStatus()">Refresh Status</button>
-  </div>
+      const logEl = document.getElementById("log");
+      const dot = document.getElementById("dot");
+      const statusText = document.getElementById("statusText");
+      const rawEl = document.getElementById("raw");
+      const pinInput = document.getElementById("pin");
 
-  <div class="card">
-    <strong>Debug output</strong>
-    <pre id="output">(nothing yet)</pre>
-  </div>
+      // Load saved PIN for convenience (still visible to whoever uses the device)
+      const saved = sessionStorage.getItem("ark_pin");
+      if (saved) pinInput.value = saved;
 
-<script>
-  function $(id){ return document.getElementById(id); }
+      function savePin() {
+        sessionStorage.setItem("ark_pin", pinInput.value.trim());
+        addLog("PIN saved for this session.");
+        status(); // auto-check after unlock
+      }
 
-  function saveSettings() {
-    localStorage.setItem("ark_baseUrl", $("baseUrl").value.trim());
-    localStorage.setItem("ark_token", $("token").value.trim());
-    refreshStatus();
-  }
+      function getPin() {
+        return (sessionStorage.getItem("ark_pin") || "").trim();
+      }
 
-  function loadSettings() {
-    $("baseUrl").value = localStorage.getItem("ark_baseUrl") || "";
-    $("token").value = localStorage.getItem("ark_token") || "";
-  }
+      function addLog(msg) {
+        logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + logEl.textContent;
+      }
 
-  function log(obj) {
-    $("output").textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
-  }
+      async function api(path, method = "GET") {
+        const pin = getPin();
+        if (!pin) throw new Error("Enter PIN and press Unlock");
 
-  function getCfg() {
-    const baseUrl = $("baseUrl").value.trim().replace(/\/+$/, "");
-    const token = $("token").value.trim();
-    if (!baseUrl) throw new Error("Missing Backend Base URL");
-    if (!token) throw new Error("Missing Access Token");
-    return { baseUrl, token };
-  }
+        const resp = await fetch(`${BACKEND_BASE}${path}`, {
+          method,
+          headers: { "x-pin": pin }
+        });
 
-  async function safeJson(resp) {
-    const ct = resp.headers.get("content-type") || "";
-    const text = await resp.text();
-    if (ct.includes("application/json")) return JSON.parse(text);
-    // This is the exact fix for your earlier: Unexpected token '<'
-    // It happens when the response is HTML (like an ngrok/404 page).
-    throw new Error(`Expected JSON, got: ${text.slice(0, 80)}...`);
-  }
-
-  function inferOnOff(data) {
-    // Nitrado’s response structure can vary; we do a best-effort parse:
-    const raw = JSON.stringify(data).toLowerCase();
-
-    if (raw.includes("started") || raw.includes("running") || raw.includes("online")) return "Likely ON";
-    if (raw.includes("stopped") || raw.includes("offline")) return "Likely OFF";
-    return "Unknown (see debug)";
-  }
-
-  async function doAction(action) {
-    try {
-      const { baseUrl, token } = getCfg();
-      const resp = await fetch(`${baseUrl}/api/${action}`, {
-        method: "POST",
-        headers: {
-          "x-control-token": token,
-          "Content-Type": "application/json"
+        // If backend/route missing, ngrok returns HTML. Handle that cleanly:
+        const contentType = resp.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          const text = await resp.text();
+          throw new Error(`Non-JSON response (${resp.status}): ${text.slice(0, 120)}`);
         }
-      });
 
-      const data = await safeJson(resp);
-      log(data);
-      await refreshStatus();
-    } catch (e) {
-      log(`Action failed: ${e}`);
-    }
-  }
+        const json = await resp.json();
+        if (!resp.ok) {
+          throw new Error(`${resp.status}: ${json.error || "Request failed"}`);
+        }
+        return json;
+      }
 
-  async function refreshStatus() {
-    try {
-      const { baseUrl, token } = getCfg();
+      function setUi(online, rawStatus) {
+        dot.classList.remove("online", "offline");
+        if (online === true) dot.classList.add("online");
+        else if (online === false) dot.classList.add("offline");
+        statusText.textContent = online === true ? "Online" : online === false ? "Offline" : "Unknown";
+        rawEl.textContent = "raw: " + (rawStatus ?? "n/a");
+      }
 
-      const resp = await fetch(`${baseUrl}/api/status`, {
-        method: "GET",
-        headers: { "x-control-token": token }
-      });
+      async function status() {
+        try {
+          addLog("Checking status…");
+          const r = await api("/api/status", "GET");
+          setUi(r.online, r.rawStatus);
+          addLog("Status OK.");
+        } catch (e) {
+          addLog("Status failed: " + e.message);
+        }
+      }
 
-      const data = await safeJson(resp);
+      async function start() {
+        try { addLog("Start…"); await api("/api/start", "POST"); addLog("Start requested."); setTimeout(status, 1500); }
+        catch(e){ addLog("Start failed: " + e.message); }
+      }
 
-      $("statusText").textContent = inferOnOff(data);
-      $("statusTime").textContent = new Date().toLocaleTimeString();
-      $("statusHint").textContent = "If it says Unknown, check the Debug output for the exact JSON.";
-      log(data);
-    } catch (e) {
-      $("statusText").textContent = "Failed";
-      $("statusTime").textContent = new Date().toLocaleTimeString();
-      $("statusHint").textContent = "";
-      log(`Status failed: ${e}`);
-    }
-  }
+      async function stop() {
+        try { addLog("Stop…"); await api("/api/stop", "POST"); addLog("Stop requested."); setTimeout(status, 1500); }
+        catch(e){ addLog("Stop failed: " + e.message); }
+      }
 
-  loadSettings();
-  // Auto fetch status when page opens:
-  if ($("baseUrl").value && $("token").value) refreshStatus();
-  // Auto-refresh every 10 seconds:
-  setInterval(() => {
-    if ($("baseUrl").value && $("token").value) refreshStatus();
-  }, 10000);
-</script>
-</body>
+      async function restart() {
+        try { addLog("Restart…"); await api("/api/restart", "POST"); addLog("Restart requested."); setTimeout(status, 1500); }
+        catch(e){ addLog("Restart failed: " + e.message); }
+      }
+
+      // Auto-check on page load (will ask for PIN if not saved)
+      setTimeout(() => {
+        if (getPin()) status();
+        else addLog("Enter PIN and press Unlock to enable controls.");
+      }, 200);
+    </script>
+  </body>
 </html>
