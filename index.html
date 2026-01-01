@@ -8,6 +8,10 @@
       button { padding: 10px 14px; margin-right: 10px; }
       code { background: #f2f2f2; padding: 2px 6px; border-radius: 6px; }
       pre { background: #f7f7f7; padding: 12px; border-radius: 10px; overflow:auto; }
+      .status-row { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+      .status-indicator { display: inline-flex; align-items: center; gap: 8px; font-weight: bold; }
+      .status-dot { width: 12px; height: 12px; border-radius: 50%; background: #aaa; box-shadow: 0 0 0 1px #999 inset; }
+      .status-detail { color: #666; font-size: 0.9em; }
     </style>
   </head>
   <body>
@@ -17,8 +21,15 @@
       Backend: <code id="backend"></code>
     </p>
 
+    <div class="status-row">
+      <span class="status-indicator" aria-live="polite">
+        <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+        <span id="status-text">Checking…</span>
+      </span>
+      <span id="status-detail" class="status-detail"></span>
+    </div>
+
     <div>
-      <button onclick="status()">Status</button>
       <button onclick="start()">Start</button>
       <button onclick="stop()">Stop</button>
     </div>
@@ -38,12 +49,43 @@
           typeof x === "string" ? x : JSON.stringify(x, null, 2);
       }
 
-      async function status() {
+      function setStatusVisual(label, color, detailText = "") {
+        const dot = document.getElementById("status-dot");
+        const text = document.getElementById("status-text");
+        const detail = document.getElementById("status-detail");
+
+        dot.style.background = color;
+        text.textContent = label;
+        detail.textContent = detailText ? `(${detailText})` : "";
+      }
+
+      function parseOnlineStatus(data) {
+        const rawStatus =
+          data?.data?.gameserver?.status || data?.status || data?.message;
+        const statusString = typeof rawStatus === "string" ? rawStatus.toLowerCase() : "";
+
+        const isOnline = ["started", "running", "online"].some((state) =>
+          statusString.includes(state)
+        );
+        const isOffline = ["stopped", "offline"].some((state) =>
+          statusString.includes(state)
+        );
+
+        if (isOnline) return { label: "Online", color: "#2ecc71", detail: rawStatus };
+        if (isOffline) return { label: "Offline", color: "#e74c3c", detail: rawStatus };
+        return { label: "Unknown", color: "#f1c40f", detail: rawStatus || "" };
+      }
+
+      async function refreshStatus() {
         try {
+          setStatusVisual("Checking…", "#bbb");
           const r = await fetch(`${BACKEND_BASE_URL}/api/status`);
           const data = await r.json();
+          const statusInfo = parseOnlineStatus(data);
+          setStatusVisual(statusInfo.label, statusInfo.color, statusInfo.detail);
           show({ httpStatus: r.status, data });
         } catch (e) {
+          setStatusVisual("Status unavailable", "#e67e22");
           show("Status failed: " + e);
         }
       }
@@ -56,6 +98,7 @@
           });
           const data = await r.json();
           show({ httpStatus: r.status, data });
+          refreshStatus();
         } catch (e) {
           show("Start failed: " + e);
         }
@@ -69,10 +112,13 @@
           });
           const data = await r.json();
           show({ httpStatus: r.status, data });
+          refreshStatus();
         } catch (e) {
           show("Stop failed: " + e);
         }
       }
+
+      refreshStatus();
     </script>
   </body>
 </html>
