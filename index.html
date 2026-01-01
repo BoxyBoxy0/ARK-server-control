@@ -8,13 +8,17 @@
         --bg:#0f1720;
         --card:#0b1220;
         --muted:#9aa6b2;
-        --border:#22313f;
+        --accent:#2b6cb0;
         --button:#1f2937;
         --button-hover:#323f4a;
+        --border:#22313f;
+        --good:#16a34a;
+        --bad:#ef4444;
+        --warn:#f59e0b;
       }
       html,body{height:100%}
       body {
-        font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+        font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
         max-width: 820px;
         margin: 40px auto;
         background: linear-gradient(180deg,#06121a 0%, #071923 100%);
@@ -22,15 +26,16 @@
         padding: 28px;
       }
       .container {
+        background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));
         border: 2px solid var(--border);
         border-radius: 12px;
         padding: 22px;
         box-shadow: 0 8px 30px rgba(2,6,23,0.6);
       }
-      h1{margin-top:0}
+      h1{margin-top:0; font-size:28px; letter-spacing:0.2px; color:#f5fbff}
       p{color:var(--muted)}
-      code { background: #07111a; padding: 4px 8px; border-radius:8px; border:1px solid var(--border); }
-      pre { background:#07111a; padding: 14px; border-radius: 10px; border: 2px solid var(--border); overflow:auto; }
+      #backend{font-weight:600;color:#cfe7ff;}
+      .controls {margin: 16px 0;}
       button {
         padding: 10px 16px;
         margin-right: 10px;
@@ -40,15 +45,70 @@
         color: #eaf3ff;
         font-weight:700;
         cursor:pointer;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.45);
+        transition: transform .08s ease, background .12s ease, box-shadow .12s ease;
       }
-      button:hover{ background:var(--button-hover); }
-      .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-      .badge {
-        display:inline-block;
-        padding: 6px 10px;
-        border-radius: 999px;
-        border: 1px solid var(--border);
-        font-weight: 800;
+      button:hover{ background:var(--button-hover); transform: translateY(-1px);}
+      button:active{ transform:translateY(0); box-shadow: 0 2px 6px rgba(0,0,0,0.5); }
+      button:focus{ outline: 3px solid rgba(43,108,176,0.16); outline-offset:3px; }
+
+      code { background: #07111a; padding: 4px 8px; border-radius:8px; color:#cfe7ff; border:1px solid var(--border); font-weight:600; }
+      pre {
+        background: linear-gradient(180deg,#07111a,#0b1622);
+        padding: 14px;
+        border-radius: 10px;
+        overflow:auto;
+        border: 2px solid var(--border);
+        color:#d5e8ff;
+        font-weight:600;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+      }
+
+      .status-pill{
+        display:inline-flex;
+        align-items:center;
+        gap:10px;
+        padding:10px 14px;
+        border-radius:999px;
+        border:2px solid var(--border);
+        background: rgba(255,255,255,0.02);
+        font-weight:800;
+        letter-spacing:0.3px;
+      }
+      .dot{
+        width:12px;height:12px;border-radius:999px;
+        background: var(--warn);
+        box-shadow: 0 0 0 4px rgba(245,158,11,0.15);
+      }
+      .dot.good{ background: var(--good); box-shadow: 0 0 0 4px rgba(22,163,74,0.15); }
+      .dot.bad{ background: var(--bad); box-shadow: 0 0 0 4px rgba(239,68,68,0.15); }
+
+      .row{display:flex; gap:16px; align-items:center; flex-wrap:wrap;}
+      .spacer{height:10px;}
+
+      .gate{
+        margin: 14px 0 6px;
+        padding: 12px;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        background: rgba(0,0,0,0.12);
+      }
+      input{
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 2px solid var(--border);
+        background: #07111a;
+        color:#e6eef6;
+        font-weight:700;
+        width: 240px;
+        max-width: 100%;
+      }
+      label{color: var(--muted); font-weight: 700; margin-right: 10px;}
+
+      @media (max-width:520px){
+        body{margin:18px}
+        button{display:block;margin:8px 0;width:100%;}
+        .row{gap:10px}
       }
     </style>
   </head>
@@ -59,13 +119,31 @@
 
       <p>Backend: <code id="backend"></code></p>
 
-      <div class="row" style="margin: 10px 0 18px;">
-        <div>Server:</div>
-        <div class="badge" id="serverState">UNKNOWN</div>
-        <div style="color:#9aa6b2; font-size: 13px;" id="lastUpdate"></div>
+      <!-- Easy “friend-friendly” gate. This is NOT your real security.
+           Real security is still the backend header token. -->
+      <div class="gate">
+        <div class="row">
+          <label for="pin">Panel PIN:</label>
+          <input id="pin" placeholder="Enter PIN" type="password" />
+          <button onclick="unlock()">Unlock</button>
+          <button onclick="lock()">Lock</button>
+        </div>
+        <p style="margin:10px 0 0;">
+          This hides the buttons unless someone knows the PIN. (Your backend token is still required too.)
+        </p>
       </div>
 
-      <div class="row" style="margin-bottom: 16px;">
+      <div class="row">
+        <div class="status-pill">
+          <span id="dot" class="dot"></span>
+          <span id="statusText">UNKNOWN</span>
+        </div>
+        <p style="margin:0;">Last check: <span id="lastCheck">—</span></p>
+      </div>
+
+      <div class="spacer"></div>
+
+      <div id="controls" class="controls" style="display:none;">
         <button onclick="status()">Status</button>
         <button onclick="start()">Start</button>
         <button onclick="stop()">Stop</button>
@@ -73,98 +151,159 @@
       </div>
 
       <h3>Output</h3>
-      <pre id="out">Loading…</pre>
+      <pre id="out">Locked. Enter PIN to show controls…</pre>
+
+      <script>
+        // ---- CONFIG ----
+        const BACKEND_BASE_URL = "https://finniest-fransisca-ureido.ngrok-free.dev";
+
+        // This token is visible in the frontend. For temporary use it’s OK,
+        // but don’t share the URL publicly.
+        const CONTROL_TOKEN = "ark-panel-9f3k2lq8";
+
+        // Simple “panel PIN” gate (friend-friendly). You choose the PIN here.
+        // Anyone can still view this in page source, so it’s not “security”,
+        // it’s just a speed bump + avoids accidental clicks.
+        const PANEL_PIN = "1234";
+
+        // Auto-refresh status every N seconds (set to 0 to disable)
+        const AUTO_REFRESH_SECONDS = 20;
+
+        document.getElementById("backend").textContent = BACKEND_BASE_URL;
+
+        function show(x) {
+          document.getElementById("out").textContent =
+            typeof x === "string" ? x : JSON.stringify(x, null, 2);
+        }
+
+        function setPill(state) {
+          const dot = document.getElementById("dot");
+          const txt = document.getElementById("statusText");
+
+          dot.classList.remove("good", "bad");
+          if (state === "ONLINE") dot.classList.add("good");
+          else if (state === "OFFLINE") dot.classList.add("bad");
+
+          txt.textContent = state;
+          document.getElementById("lastCheck").textContent = new Date().toLocaleString();
+        }
+
+        // Robust fetch: tries JSON; if not JSON, shows text (prevents the "<!DOCTYPE" crash)
+        async function fetchJsonOrText(url, options) {
+          const r = await fetch(url, options);
+          const contentType = r.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            return { r, data: await r.json() };
+          }
+          const text = await r.text();
+          return { r, data: { raw: text } };
+        }
+
+        // “Unlock” controls with a PIN (stored only in sessionStorage)
+        function unlock() {
+          const pin = document.getElementById("pin").value.trim();
+          if (pin !== PANEL_PIN) {
+            show("Wrong PIN.");
+            return;
+          }
+          sessionStorage.setItem("ark_panel_unlocked", "1");
+          document.getElementById("controls").style.display = "";
+          show("Unlocked. Fetching status…");
+          status();
+        }
+        function lock() {
+          sessionStorage.removeItem("ark_panel_unlocked");
+          document.getElementById("controls").style.display = "none";
+          setPill("UNKNOWN");
+          show("Locked.");
+        }
+
+        // On page load: if previously unlocked in this tab, show controls and auto-status
+        (function init() {
+          if (sessionStorage.getItem("ark_panel_unlocked") === "1") {
+            document.getElementById("controls").style.display = "";
+            show("Unlocked (session). Fetching status…");
+            status();
+          }
+        })();
+
+        // ---- API CALLS ----
+
+        async function status() {
+          try {
+            // IMPORTANT: status endpoint on your backend requires the token header
+            const { r, data } = await fetchJsonOrText(`${BACKEND_BASE_URL}/api/status`, {
+              method: "GET",
+              headers: { "x-control-token": CONTROL_TOKEN }
+            });
+
+            // Try to detect ON/OFF from common Nitrado fields (varies a bit by game)
+            const detected =
+              data?.data?.data?.gameserver?.status ||
+              data?.data?.data?.gameserver?.state ||
+              data?.data?.status ||
+              data?.data?.state ||
+              null;
+
+            const lower = String(detected || "").toLowerCase();
+            if (lower.includes("started") || lower.includes("running") || lower.includes("on")) setPill("ONLINE");
+            else if (lower.includes("stopped") || lower.includes("offline") || lower.includes("down") || lower.includes("off")) setPill("OFFLINE");
+            else setPill("UNKNOWN");
+
+            show({ httpStatus: r.status, detectedStatus: detected, full: data });
+          } catch (e) {
+            setPill("UNKNOWN");
+            show("Status failed: " + e);
+          }
+        }
+
+        async function start() {
+          try {
+            const { r, data } = await fetchJsonOrText(`${BACKEND_BASE_URL}/api/start`, {
+              method: "POST",
+              headers: { "x-control-token": CONTROL_TOKEN }
+            });
+            show({ httpStatus: r.status, data });
+            // update status after a short delay
+            setTimeout(status, 2500);
+          } catch (e) {
+            show("Start failed: " + e);
+          }
+        }
+
+        async function stop() {
+          try {
+            const { r, data } = await fetchJsonOrText(`${BACKEND_BASE_URL}/api/stop`, {
+              method: "POST",
+              headers: { "x-control-token": CONTROL_TOKEN }
+            });
+            show({ httpStatus: r.status, data });
+            setTimeout(status, 2500);
+          } catch (e) {
+            show("Stop failed: " + e);
+          }
+        }
+
+        async function restart() {
+          try {
+            const { r, data } = await fetchJsonOrText(`${BACKEND_BASE_URL}/api/restart`, {
+              method: "POST",
+              headers: { "x-control-token": CONTROL_TOKEN }
+            });
+            show({ httpStatus: r.status, data });
+            setTimeout(status, 2500);
+          } catch (e) {
+            show("Restart failed: " + e);
+          }
+        }
+
+        // Auto-refresh if enabled AND unlocked
+        if (AUTO_REFRESH_SECONDS > 0) {
+          setInterval(() => {
+            if (sessionStorage.getItem("ark_panel_unlocked") === "1") status();
+          }, AUTO_REFRESH_SECONDS * 1000);
+        }
+      </script>
     </div>
-
-    <script>
-      const BACKEND_BASE_URL = "https://finniest-fransisca-ureido.ngrok-free.dev";
-      const CONTROL_TOKEN = "ark-panel-9f3k2lq8"; // temp/simple auth
-
-      document.getElementById("backend").textContent = BACKEND_BASE_URL;
-
-      function show(x) {
-        document.getElementById("out").textContent =
-          typeof x === "string" ? x : JSON.stringify(x, null, 2);
-      }
-
-      function setState(text) {
-        document.getElementById("serverState").textContent = text;
-        document.getElementById("lastUpdate").textContent =
-          "Last checked: " + new Date().toLocaleTimeString();
-      }
-
-      // Very simple inference: we search the returned JSON for status-ish words
-      function inferOnOff(payload) {
-        const s = JSON.stringify(payload).toLowerCase();
-        if (s.includes("running") || s.includes("started") || s.includes("online")) return "ON";
-        if (s.includes("stopped") || s.includes("offline") || s.includes("suspended")) return "OFF";
-        return "UNKNOWN";
-      }
-
-      async function callJson(path, options = {}) {
-        const r = await fetch(`${BACKEND_BASE_URL}${path}`, {
-          ...options,
-          headers: {
-            "x-control-token": CONTROL_TOKEN,
-            ...(options.headers || {}),
-          },
-        });
-
-        const text = await r.text();
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch {
-          // If this happens, you’re not receiving JSON from your backend (often backend crashed)
-          throw new Error(`Non-JSON response (HTTP ${r.status}): ${text.slice(0, 120)}...`);
-        }
-        return { status: r.status, data };
-      }
-
-      async function status() {
-        try {
-          const { status, data } = await callJson("/api/status", { method: "GET" });
-          show({ httpStatus: status, data });
-          setState(inferOnOff(data));
-        } catch (e) {
-          show("Status failed: " + e);
-          setState("UNKNOWN");
-        }
-      }
-
-      async function start() {
-        try {
-          const { status, data } = await callJson("/api/start", { method: "POST" });
-          show({ httpStatus: status, data });
-          await status();
-        } catch (e) {
-          show("Start failed: " + e);
-        }
-      }
-
-      async function stop() {
-        try {
-          const { status, data } = await callJson("/api/stop", { method: "POST" });
-          show({ httpStatus: status, data });
-          await status();
-        } catch (e) {
-          show("Stop failed: " + e);
-        }
-      }
-
-      async function restart() {
-        try {
-          const { status, data } = await callJson("/api/restart", { method: "POST" });
-          show({ httpStatus: status, data });
-          await status();
-        } catch (e) {
-          show("Restart failed: " + e);
-        }
-      }
-
-      // Auto-check on page load + every 15 seconds
-      status();
-      setInterval(status, 15000);
-    </script>
   </body>
 </html>
