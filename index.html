@@ -17,9 +17,7 @@
   <body>
     <h1>ARK Server Control</h1>
 
-    <p>
-      Backend: <code id="backend"></code>
-    </p>
+    <p>Backend: <code id="backend"></code></p>
 
     <div class="status-row">
       <span class="status-indicator" aria-live="polite">
@@ -39,7 +37,6 @@
 
     <script>
       const BACKEND_BASE_URL = "https://finniest-fransisca-ureido.ngrok-free.dev";
-      // This token is visible in the frontend. For temporary use it’s OK, but don’t share the URL publicly.
       const CONTROL_TOKEN = "ark-panel-9f3k2lq8";
 
       document.getElementById("backend").textContent = BACKEND_BASE_URL;
@@ -59,34 +56,74 @@
         detail.textContent = detailText ? `(${detailText})` : "";
       }
 
-      function parseOnlineStatus(data) {
-        const rawStatus =
-          data?.data?.gameserver?.status || data?.status || data?.message;
-        const statusString = typeof rawStatus === "string" ? rawStatus.toLowerCase() : "";
+      // IMPORTANT for ngrok: avoids HTML interstitial
+      function apiHeaders(extra = {}) {
+        return {
+          "Accept": "application/json",
+          "ngrok-skip-browser-warning": "true",
+          ...extra
+        };
+      }
 
-        const isOnline = ["started", "running", "online"].some((state) =>
-          statusString.includes(state)
-        );
-        const isOffline = ["stopped", "offline"].some((state) =>
-          statusString.includes(state)
-        );
+      async function readJsonOrThrow(response) {
+        const ct = (response.headers.get("content-type") || "").toLowerCase();
 
-        if (isOnline) return { label: "Online", color: "#2ecc71", detail: rawStatus };
-        if (isOffline) return { label: "Offline", color: "#e74c3c", detail: rawStatus };
-        return { label: "Unknown", color: "#f1c40f", detail: rawStatus || "" };
+        // If it claims to be JSON, parse it normally.
+        if (ct.includes("application/json")) {
+          return await response.json();
+        }
+
+        // Otherwise read as text so we can show what actually came back (often HTML).
+        const text = await response.text();
+        const preview = text.slice(0, 300).replace(/\s+/g, " ").trim();
+        throw new Error(
+          `Expected JSON but got content-type "${ct || "unknown"}" (HTTP ${response.status}). ` +
+          `Response starts: ${preview}`
+        );
+      }
+
+      function parseOnlineStatus(payload) {
+        // Your screenshot: payload.data.gameserver.status === "stopped"
+        const raw =
+          payload?.data?.gameserver?.status ??
+          payload?.data?.status ??
+          payload?.status ??
+          payload?.message ??
+          "";
+
+        const s = String(raw).toLowerCase();
+
+        // Treat transitional states as "Unknown" (yellow)
+        const onlineWords = ["started", "running", "online", "up"];
+        const offlineWords = ["stopped", "offline", "down"];
+
+        const isOnline = onlineWords.some(w => s.includes(w));
+        const isOffline = offlineWords.some(w => s.includes(w));
+
+        if (isOnline) return { label: "Online", color: "#2ecc71", detail: raw };
+        if (isOffline) return { label: "Offline", color: "#e74c3c", detail: raw };
+        return { label: "Unknown", color: "#f1c40f", detail: raw };
       }
 
       async function refreshStatus() {
         try {
           setStatusVisual("Checking…", "#bbb");
-          const r = await fetch(`${BACKEND_BASE_URL}/api/status`);
-          const data = await r.json();
+
+          const r = await fetch(`${BACKEND_BASE_URL}/api/status`, {
+            method: "GET",
+            headers: apiHeaders(),
+            cache: "no-store"
+          });
+
+          const data = await readJsonOrThrow(r);
+
           const statusInfo = parseOnlineStatus(data);
           setStatusVisual(statusInfo.label, statusInfo.color, statusInfo.detail);
+
           show({ httpStatus: r.status, data });
         } catch (e) {
           setStatusVisual("Status unavailable", "#e67e22");
-          show("Status failed: " + e);
+          show("Status failed: " + (e?.message || e));
         }
       }
 
@@ -94,13 +131,15 @@
         try {
           const r = await fetch(`${BACKEND_BASE_URL}/api/start`, {
             method: "POST",
-            headers: { "x-control-token": CONTROL_TOKEN }
+            headers: apiHeaders({ "x-control-token": CONTROL_TOKEN })
           });
-          const data = await r.json();
+
+          const data = await readJsonOrThrow(r);
           show({ httpStatus: r.status, data });
+
           refreshStatus();
         } catch (e) {
-          show("Start failed: " + e);
+          show("Start failed: " + (e?.message || e));
         }
       }
 
@@ -108,17 +147,21 @@
         try {
           const r = await fetch(`${BACKEND_BASE_URL}/api/stop`, {
             method: "POST",
-            headers: { "x-control-token": CONTROL_TOKEN }
+            headers: apiHeaders({ "x-control-token": CONTROL_TOKEN })
           });
-          const data = await r.json();
+
+          const data = await readJsonOrThrow(r);
           show({ httpStatus: r.status, data });
+
           refreshStatus();
         } catch (e) {
-          show("Stop failed: " + e);
+          show("Stop failed: " + (e?.message || e));
         }
       }
 
       refreshStatus();
+      // optional: refresh every 10s
+      setInterval(refreshStatus, 10000);
     </script>
   </body>
 </html>
