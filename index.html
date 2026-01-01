@@ -1,44 +1,78 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <title>ARK Server Control</title>
-</head>
-<body>
+  <head>
+    <meta charset="utf-8" />
+    <title>ARK Server Control</title>
+    <style>
+      body { font-family: sans-serif; max-width: 720px; margin: 40px auto; }
+      button { padding: 10px 14px; margin-right: 10px; }
+      code { background: #f2f2f2; padding: 2px 6px; border-radius: 6px; }
+      pre { background: #f7f7f7; padding: 12px; border-radius: 10px; overflow:auto; }
+    </style>
+  </head>
+  <body>
+    <h1>ARK Server Control</h1>
 
-<h1>ARK Server Control</h1>
+    <p>
+      Backend: <code id="backend"></code>
+    </p>
 
-<button onclick="startServer()">Start Server</button>
-<button onclick="checkStatus()">Check Status</button>
+    <div>
+      <button onclick="status()">Status</button>
+      <button onclick="start()">Start</button>
+      <button onclick="stop()">Stop</button>
+    </div>
 
-<pre id="output"></pre>
+    <h3>Output</h3>
+    <pre id="out">Click a button…</pre>
 
-<script>
-const API_BASE = "https://finniest-fransisca-ureido.ngrok-free.dev";
-const TOKEN = "some_random_string";
+    <script>
+      const BACKEND_BASE_URL = "https://finniest-fransisca-ureido.ngrok-free.dev";
+      // This token is visible in the frontend. For temporary use it’s OK, but don’t share the URL publicly.
+      const CONTROL_TOKEN = "ark-panel-9f3k2lq8";
 
-async function startServer() {
-  const res = await fetch(`${API_BASE}/api/start`, {
-    method: "POST",
-    headers: {
-      "x-control-token": TOKEN
-    }
-  });
+      document.getElementById("backend").textContent = BACKEND_BASE_URL;
 
-  document.getElementById("output").textContent =
-    await res.text();
-}
+      function show(x) {
+        document.getElementById("out").textContent =
+          typeof x === "string" ? x : JSON.stringify(x, null, 2);
+      }
 
-async function checkStatus() {
-  const res = await fetch(`${API_BASE}/api/status`, {
-    headers: {
-      "x-control-token": TOKEN
-    }
-  });
+      async function status() {
+        try {
+          const r = await fetch(`${BACKEND_BASE_URL}/api/status`);
+          const data = await r.json();
+          show({ httpStatus: r.status, data });
+        } catch (e) {
+          show("Status failed: " + e);
+        }
+      }
 
-  document.getElementById("output").textContent =
-    await res.text();
-}
-</script>
+      async function start() {
+        try {
+          const r = await fetch(`${BACKEND_BASE_URL}/api/start`, {
+            method: "POST",
+            headers: { "x-control-token": CONTROL_TOKEN }
+          });
+          const data = await r.json();
+          show({ httpStatus: r.status, data });
+        } catch (e) {
+          show("Start failed: " + e);
+        }
+      }
 
-</body>
+      async function stop() {
+        try {
+          const r = await fetch(`${BACKEND_BASE_URL}/api/stop`, {
+            method: "POST",
+            headers: { "x-control-token": CONTROL_TOKEN }
+          });
+          const data = await r.json();
+          show({ httpStatus: r.status, data });
+        } catch (e) {
+          show("Stop failed: " + e);
+        }
+      }
+    </script>
+  </body>
 </html>
