@@ -71,71 +71,68 @@
         }
       </style>
   </head>
-  <body>
-    <div class="container">
-      <h1>ARK Server Control</h1> 
+<body>
+  <h1>ARK Server Control</h1>
 
-    <p>
-      Backend: <code id="backend"></code>
-    </p>
+  <p><b>Backend:</b> <span id="backendUrl"></span></p>
 
-    <div class="controls">
-      <button onclick="status()">Status</button>
-      <button onclick="start()">Start</button>
-      <button onclick="stop()">Stop</button>
-    </div>
+  <button onclick="restartServer()">Restart</button>
+  <button onclick="startServer()">Start</button>
+  <button onclick="stopServer()">Stop</button>
+  <button onclick="checkStatus()">Status</button>
 
-    <h3>Output</h3>
-    <pre id="out">Click a button…</pre>
+  <h3>Output</h3>
+  <pre id="out">Ready.</pre>
 
-    <script>
-      const BACKEND_BASE_URL = "https://finniest-fransisca-ureido.ngrok-free.dev";
-      // This token is visible in the frontend. For temporary use it’s OK, but don’t share the URL publicly.
-      const CONTROL_TOKEN = "ark-panel-9f3k2lq8";
+  <script>
+    const BACKEND = "YOUR_NGROK_URL_HERE"; // e.g. https://finniest-fransisca-ureido.ngrok-free.dev
+    const TOKEN = "ark-panel-9f3k2lq8";    // better later: login; for now this is ok
 
-      document.getElementById("backend").textContent = BACKEND_BASE_URL;
+    document.getElementById("backendUrl").textContent = BACKEND;
 
-      function show(x) {
-        document.getElementById("out").textContent =
-          typeof x === "string" ? x : JSON.stringify(x, null, 2);
-      }
+    function show(obj) {
+      document.getElementById("out").textContent =
+        (typeof obj === "string") ? obj : JSON.stringify(obj, null, 2);
+    }
 
-      async function status() {
-        try {
-          const r = await fetch(`${BACKEND_BASE_URL}/api/status`);
-          const data = await r.json();
-          show({ httpStatus: r.status, data });
-        } catch (e) {
-          show("Status failed: " + e);
+    async function api(path, method="GET") {
+      const res = await fetch(`${BACKEND}${path}`, {
+        method,
+        headers: {
+          "x-control-token": TOKEN
         }
-      }
+      });
 
-      async function start() {
-        try {
-          const r = await fetch(`${BACKEND_BASE_URL}/api/start`, {
-            method: "POST",
-            headers: { "x-control-token": CONTROL_TOKEN }
-          });
-          const data = await r.json();
-          show({ httpStatus: r.status, data });
-        } catch (e) {
-          show("Start failed: " + e);
-        }
+      // Read text first so we can debug HTML errors
+      const text = await res.text();
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`Non-JSON response (${res.status}): ${text.slice(0, 120)}...`);
       }
+      return json;
+    }
 
-      async function stop() {
-        try {
-          const r = await fetch(`${BACKEND_BASE_URL}/api/stop`, {
-            method: "POST",
-            headers: { "x-control-token": CONTROL_TOKEN }
-          });
-          const data = await r.json();
-          show({ httpStatus: r.status, data });
-        } catch (e) {
-          show("Stop failed: " + e);
-        }
-      }
-    </script>
-    </div>
-  </body>
+    async function restartServer() {
+      try { show(await api("/api/restart", "POST")); }
+      catch (e) { show("Restart failed: " + e.message); }
+    }
+
+    async function startServer() {
+      try { show(await api("/api/start", "POST")); }
+      catch (e) { show("Start failed: " + e.message); }
+    }
+
+    async function stopServer() {
+      try { show(await api("/api/stop", "POST")); }
+      catch (e) { show("Stop failed: " + e.message); }
+    }
+
+    async function checkStatus() {
+      try { show(await api("/api/status", "GET")); }
+      catch (e) { show("Status failed: " + e.message); }
+    }
+  </script>
+</body>
 </html>
