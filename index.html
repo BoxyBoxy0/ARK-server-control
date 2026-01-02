@@ -91,6 +91,7 @@
       <div class="controls">
         <button onclick="start()">Start</button>
         <button onclick="stop()">Stop</button>
+        <button onclick="refreshStatus()">Refresh Status</button>
       </div>
 
       <h3>Output</h3>
@@ -145,7 +146,7 @@
       }
 
       function parseOnlineStatus(payload) {
-        // Your screenshot: payload.data.gameserver.status === "stopped"
+
         const raw =
           payload?.data?.gameserver?.status ??
           payload?.data?.status ??
@@ -161,9 +162,18 @@
 
         const isOnline = onlineWords.some(w => s.includes(w));
         const isOffline = offlineWords.some(w => s.includes(w));
+        const isStarting =
+          s.includes("starting") ||
+          s.includes("initializing") ||
+          s.includes("loading");
+        const isStopping =
+          s.includes("stopping") ||
+          s.includes("shutting down") ||
 
         if (isOnline) return { label: "Online", color: "#2ecc71", detail: raw };
         if (isOffline) return { label: "Offline", color: "#e74c3c", detail: raw };
+        if (isStarting) return { label: "Starting…", color: "#f1c40f", detail: raw };
+        if (isStopping) return { label: "Stopping…", color: "#f1c40f", detail: raw };
         return { label: "Unknown", color: "#f1c40f", detail: raw };
       }
 
