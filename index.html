@@ -168,7 +168,7 @@
           s.includes("loading");
         const isStopping =
           s.includes("stopping") ||
-          s.includes("shutting down") ||
+          s.includes("shutting down");
 
         if (isOnline) return { label: "Online", color: "#2ecc71", detail: raw };
         if (isOffline) return { label: "Offline", color: "#e74c3c", detail: raw };
