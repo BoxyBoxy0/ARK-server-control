@@ -2,38 +2,101 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ARK Server Control</title>
     <style>
-      body { font-family: sans-serif; max-width: 720px; margin: 40px auto; }
-      button { padding: 10px 14px; margin-right: 10px; }
-      code { background: #f2f2f2; padding: 2px 6px; border-radius: 6px; }
-      pre { background: #f7f7f7; padding: 12px; border-radius: 10px; overflow:auto; }
-      .status-row { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
-      .status-indicator { display: inline-flex; align-items: center; gap: 8px; font-weight: bold; }
-      .status-dot { width: 12px; height: 12px; border-radius: 50%; background: #aaa; box-shadow: 0 0 0 1px #999 inset; }
-      .status-detail { color: #666; font-size: 0.9em; }
+      :root{
+        --bg: #071022;
+        --panel: #0b1220;
+        --muted: #94a3b8;
+        --text: #e6eef6;
+        --accent: #4f9dff;
+        --success: #2dd4bf;
+        --danger: #ff6b6b;
+        --warning: #f59e0b;
+      }
+      *{box-sizing:border-box}
+      body {
+        background: linear-gradient(180deg,var(--bg), #050912 100%);
+        color: var(--text);
+        font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        max-width: 920px;
+        margin: 36px auto;
+        padding: 20px;
+      }
+      .container {
+        background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+        border-radius: 12px;
+        padding: 18px;
+        box-shadow: 0 8px 30px rgba(2,6,23,0.7);
+        border: 1px solid rgba(255,255,255,0.03);
+      }
+      h1 { margin: 0 0 8px 0; font-size: 1.5rem; letter-spacing: -0.2px; }
+      p { color: var(--muted); margin: 8px 0 18px 0; }
+      .backend-pill {
+        display:inline-block; padding:6px 8px; border-radius:8px;
+        background: rgba(255,255,255,0.02); color: var(--accent); font-weight:600;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+      }
+      .controls { display:flex; gap: 10px; margin: 6px 0 18px 0; }
+      button {
+        background: rgba(255,255,255,0.035);
+        color: var(--text);
+        border: 1px solid rgba(255,255,255,0.06);
+        padding: 10px 16px;
+        border-radius: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        min-height: 44px;
+        transition: transform .06s ease, background .06s;
+      }
+      button:hover { transform: translateY(-1px); background: rgba(79,157,255,0.08); border-color: rgba(79,157,255,0.16); }
+      button:active { transform: translateY(0); }
+      button[onclick="start()"] { border-color: rgba(45,212,191,0.15); background: linear-gradient(90deg, rgba(45,212,191,0.06), rgba(45,212,191,0.03)); color:#c8fff4; }
+      button[onclick="stop()"] { border-color: rgba(255,107,107,0.12); background: linear-gradient(90deg, rgba(255,107,107,0.04), rgba(255,107,107,0.02)); color:#ffd9d9; }
+      code { background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 6px; color: #cfe6ff; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; font-size: .95em; }
+      pre {
+        background: #071226; color: var(--text);
+        padding: 12px; border-radius: 10px; overflow:auto;
+        border:1px solid rgba(255,255,255,0.03); max-height: 45vh; white-space: pre-wrap; word-break: break-word;
+      }
+      .status-row { display: flex; align-items: center; gap: 12px; margin: 10px 0; flex-wrap:wrap; }
+      .status-indicator { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding:8px 12px; border-radius:999px; background: rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.02); }
+      .status-dot { width: 14px; height: 14px; border-radius: 50%; background: #888; box-shadow: 0 0 0 2px rgba(0,0,0,0.4) inset; }
+      .status-detail { color: var(--muted); font-size: 0.9em; }
+      @media (max-width: 640px) {
+        body { margin: 18px; padding: 14px; }
+        .container { padding: 14px; }
+        h1 { font-size: 1.25rem; }
+        .controls { flex-direction: column; }
+        button { width: 100%; font-size: 1rem; padding: 12px 14px; }
+        pre { max-height: 35vh; }
+        .status-row { align-items:flex-start; }
+      }
     </style>
   </head>
   <body>
-    <h1>ARK Server Control</h1>
+    <div class="container">
+      <h1>ARK Server Control</h1>
 
-    <p>Backend: <code id="backend"></code></p>
+      <p>Backend: <code id="backend" class="backend-pill"></code></p>
 
-    <div class="status-row">
-      <span class="status-indicator" aria-live="polite">
-        <span id="status-dot" class="status-dot" aria-hidden="true"></span>
-        <span id="status-text">Checking…</span>
-      </span>
-      <span id="status-detail" class="status-detail"></span>
+      <div class="status-row">
+        <span class="status-indicator" aria-live="polite">
+          <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+          <span id="status-text">Checking…</span>
+        </span>
+        <span id="status-detail" class="status-detail"></span>
+      </div>
+
+      <div class="controls">
+        <button onclick="start()">Start</button>
+        <button onclick="stop()">Stop</button>
+      </div>
+
+      <h3>Output</h3>
+      <pre id="out">Click a button…</pre>
     </div>
-
-    <div>
-      <button onclick="start()">Start</button>
-      <button onclick="stop()">Stop</button>
-    </div>
-
-    <h3>Output</h3>
-    <pre id="out">Click a button…</pre>
 
     <script>
       const BACKEND_BASE_URL = "https://finniest-fransisca-ureido.ngrok-free.dev";
